@@ -43,37 +43,53 @@ class DNS:
 
         #Read arguments from command line
         args = parser.parse_args()
-        print(args)
+        # print(args)
         return args
     
 
-    def create_dns_query(query_type, name):
+    def create_dns_query(timeout, max_retries, port, mx, ns, server, name):
 
         # DNS header fields (2 bytes each)
         ID = random.randint(1, 65535)  # You can choose any ID value
+        # print(ID)
+        binary_id = bin(ID)[2:]  # [2:] is used to remove the '0b' prefix
+        # print(binary_id)
+        # ID = hex(ID)[2:]
+        # print(ID)
+        # id_bytes = ID.to_bytes(2, byteorder='big')  # 2 bytes for ID
 
-        # DNS header fields (16 bits each)
-        QR = 0b0     # 0 for query (not a response)
-        OPCODE = 0b0000  # 4-bit field set to 0 for standard query
-        AA = 0b0     # Authoritative Answer bit (0 for non-authoritative response)
-        TC = 0b0     # Truncation bit (not truncated)
-        RD = 0b1     # Recursion Desired bit (set to 1 to indicate desire for recursion)
-        RA = 0b0     # Recursion Available bit (set to 0 initially)
-        Z = 0b000      # 3-bit reserved field set to 0
-        RCODE = 0b0000  # Response Code (set to 0 for requests)
-        QDCOUNT = 1  # Number of Questions (always 1 for our program)
-        ANCOUNT = 0  # Number of Answer records (initially 0)
-        NSCOUNT = 0  # Number of Name Server records (initially 0)
-        ARCOUNT = 0  # Number of Additional records (initially 0)
+        header = binary_id + '0000000100000000' + '0000000000000001' + '0000000000000000' + '0000000000000000' + '0000000000000000'
+        # print(header)
+        header_int = int(header, 2)
+        header_hex = hex(header_int)[2:]
+        print(header_hex)
 
-        # Pack the header fields into bytes
-        header = struct.pack('!HHHHHH', ID, QR, OPCODE, AA, TC, RD, RA, Z, RCODE, QDCOUNT, ANCOUNT, NSCOUNT, ARCOUNT)
+        # QR = format(0b0, '01b')       # 0 for query (not a response)
+        # OPCODE = format(0b0000, '04b')  # 4-bit field set to 0 for standard query
+        # AA = format(0b0, '01b')       # Authoritative Answer bit (0 for non-authoritative response)
+        # TC = format(0b0, '01b')       # Truncation bit (not truncated)
+        # RD = format(0b1, '01b')       # Recursion Desired bit (set to 1 to indicate desire for recursion)
+        # RA = format(0b0, '01b')       # Recursion Available bit (set to 0 initially)
+        # Z = format(0b000, '03b')      # 3-bit reserved field set to 0
+        # RCODE = format(0b0000, '04b')  # Response Code (set to 0 for requests)
 
+        # header_binary = QR + OPCODE + AA + TC + RD + RA + Z + RCODE
+        # init_header_hex = hex(int(header_binary, 2))  # Convert binary to hexadecimal
+
+        # print(init_header_hex)
+
+        # QDCOUNT = hex(1)[2:]  # Number of Questions (always 1 for our program)
+        # ANCOUNT = hex(0)[2:]  # Number of Answer records (initially 0)
+        # NSCOUNT = hex(0)[2:]  # Number of Name Server records (initially 0)
+        # ARCOUNT = hex(0)[2:]  # Number of Additional records (initially 0)
+
+        # header = ID + init_header_hex + QDCOUNT + ANCOUNT + NSCOUNT + ARCOUNT
+        # # header = (QR, OPCODE, AA, TC, RD, RA, Z, RCODE, QDCOUNT, ANCOUNT, NSCOUNT, ARCOUNT)
+        # print(header)
+ 
         # Encode domain name
         labels = name.split('.')
         qname = b''
-        # for label in labels:
-        #     qname += bytes([len(label)]) + label.encode()
 
         for label in labels:
             label_length = len(label)
@@ -85,17 +101,42 @@ class DNS:
         qname = qname.hex() #MAKE SURE THAT WE WANT IN HEX
         # print(qname)
 
-        # LEFT OFF HERE!!!!!!!!!
-
         # DNS question fields (4 bytes each)
-        QTYPE = query_type
-        QCLASS = 1  # IN (Internet)
+        QTYPE = '0000000000000001'
+        if (mx and ns == False):
+            QTYPE = '0000000000000001' #Type A
+
+        if (ns):
+            QTYPE = '0000000000000010'
+
+        if(mx):
+            QTYPE = '0000000000001111'
+
+        QTYPE_int = int(QTYPE, 2)
+        # QTYPE_hex = hex(QTYPE_int)[2:]
+        QTYPE_hex = format(QTYPE_int, '04x')
+
+        #MIGHT NEED TO HANDLE ERROR WHERE BOTH ARE TRUE
+        # QTYPE = query_type
+        QCLASS = '0000000000000001'  # IN (Internet)
+        QCLASS_int = int(QCLASS, 2)
+        # print('this is qclass int')
+        # print(QCLASS_int)
+        QCLASS_hex = format(QCLASS_int, '04x')
+        # print('this is qclass hex')
+        print(QCLASS_hex)
 
         # Build DNS question section
-        question = struct.pack('!HH', QTYPE, QCLASS)
+        # question = struct.pack('!HH', QTYPE, QCLASS)
+        question = QTYPE_hex + QCLASS_hex
+        print(question)
 
+        # qname_bytes = bytes.fromhex(qname)
         # Combine header and question
-        query = header + qname + question
+        # query = header + qname_bytes + question
+        query = header_hex + qname + question
+        print('this is the full query')
+        print(query)
 
         return query
 
@@ -103,16 +144,16 @@ class DNS:
             args = parse_arguments()
 
             # Access the parsed arguments
-            print("Timeout:", args.timeout)
-            print("Max Retries:", args.max_retries)
-            print("Port:", args.port)
-            print("MX Query:", args.mx)
-            print("NS Query:", args.ns)
-            print("Server:", args.server)
-            print("Name:", args.name)
+            # print("Timeout:", args.timeout)
+            # print("Max Retries:", args.max_retries)
+            # print("Port:", args.port)
+            # print("MX Query:", args.mx)
+            # print("NS Query:", args.ns)
+            # print("Server:", args.server)
+            # print("Name:", args.name)
 
-            # create_dns_query(0x0001, 'www.mcgill.ca')
-
+            qquery = create_dns_query(args.timeout, args.max_retries, args.port, args.mx, args.ns, args.server, args.name)
+            # print(qquery)
 
 
 
