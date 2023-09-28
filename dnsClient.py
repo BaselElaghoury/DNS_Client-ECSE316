@@ -4,18 +4,9 @@ import struct
 import sys
 import time
 import random
+import binascii #Can we import this? Double check !
 
-# DNS query types
-A_TYPE = 1
-MX_TYPE = 15
-NS_TYPE = 2
-CNAME_TYPE = 5
 
-udp_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-
-server_ip = "DNS_SERVER_IP_ADDRESS" #MAYBE NEED TO CHANGE THIS
-server_port = 53  # DNS typically uses port 53
-server_address = (server_ip, server_port)
 
 #Header Info
     #We recommend that your application use a new random 16-bit number for each request.
@@ -25,6 +16,16 @@ server_address = (server_ip, server_port)
     #... (check primer)
 class DNS:
     # def __init__(self, args):
+    # DNS query types
+    A_TYPE = 1
+    MX_TYPE = 15
+    NS_TYPE = 2
+    CNAME_TYPE = 5
+
+    server_ip = "DNS_SERVER_IP_ADDRESS" #MAYBE NEED TO CHANGE THIS
+    server_port = 53  # DNS typically uses port 53
+    server_address = (server_ip, server_port)
+
     def parse_arguments():
 
         #Initialize parser
@@ -137,8 +138,85 @@ class DNS:
         query = header_hex + qname + question
         print('this is the full query')
         print(query)
-
+        # query_bytes = bytes.fromhex(query)  # Convert hexadecimal string to bytes
+        # print(query_bytes)
         return query
+    
+    def send_dns_query(query, timeout, max_retries, port, mx, ns, server, name):
+        try:
+            udp_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            # Set a timeout for the socket (optional)
+            udp_socket.settimeout(timeout)  # Set the timeout to 5 seconds
+
+            # Send the DNS query to the server
+            server_arg = binascii.unhexlify(query)
+            tuple_server = (server, port)
+            udp_socket.sendto(server_arg, tuple_server)
+
+            # Receive the response from the server
+            # response, tuple_server = udp_socket.recvfrom(1024)  # Adjust buffer size as needed
+            info = udp_socket.recv(8192) # Check if it works with 1024 buffer
+            answer = binascii.hexlify(info).decode("utf-8")
+            # Process and print the response
+            # You'll need to parse the response according to the DNS protocol
+            print("Received response:", answer)
+            
+
+            # Close the socket
+            udp_socket.close()
+
+        except socket.timeout:
+            print("Socket timed out. The DNS server did not respond within the specified timeout.")
+        except socket.error as e:
+            print("Socket error:", e)
+        except Exception as e:
+            print("An error occurred:", e)
+
+    def parse_dns_response(response):
+    # Parse the DNS response
+    # You need to implement this function based on the DNS protocol
+
+    # Extract relevant information from the response
+    # For each record in the Answer, Additional, and Authority sections, if applicable
+
+    # Print the response summary
+        print("Response received after [time] seconds ([num-retries] retries)")
+
+        # Check if there are answers in the response
+        if num_answers > 0:
+            print("***Answer Section ([num-answers] records)***")
+
+            # Loop through the answer records
+            for record in answer_records:
+                # Print A, CNAME, MX, or NS records accordingly
+                if record.type == A_TYPE:
+                    print("IP\t{}\t{}\tauth".format(record.ip_address, record.ttl))
+                elif record.type == CNAME_TYPE:
+                    print("CNAME\t{}\t{}\tauth".format(record.alias, record.ttl))
+                elif record.type == MX_TYPE:
+                    print("MX\t{}\t{}\t{}\tauth".format(record.alias, record.preference, record.ttl))
+                elif record.type == NS_TYPE:
+                    print("NS\t{}\t{}\tauth".format(record.alias, record.ttl))
+
+        # Check if there are additional records in the response
+        if num_additional > 0:
+            print("***Additional Section ([num-additional] records)***")
+
+            # Loop through the additional records
+            for record in additional_records:
+                # Print A, CNAME, MX, or NS records accordingly
+                if record.type == A_TYPE:
+                    print("A\t{}\t{}\tauth".format(record.ip_address, record.ttl))
+                elif record.type == CNAME_TYPE:
+                    print("CNAME\t{}\t{}\tauth".format(record.alias, record.ttl))
+                elif record.type == MX_TYPE:
+                    print("MX\t{}\t{}\t{}\tauth".format(record.alias, record.preference, record.ttl))
+                elif record.type == NS_TYPE:
+                    print("NS\t{}\t{}\tauth".format(record.alias, record.ttl))
+
+        # If no records found, print NOTFOUND
+        if num_answers == 0 and num_additional == 0:
+            print("NOTFOUND")                
 
     if __name__ == "__main__":
             args = parse_arguments()
@@ -153,6 +231,9 @@ class DNS:
             # print("Name:", args.name)
 
             qquery = create_dns_query(args.timeout, args.max_retries, args.port, args.mx, args.ns, args.server, args.name)
+            squery = send_dns_query(qquery, args.timeout, args.max_retries, args.port, args.mx, args.ns, args.server, args.name)
+
+
             # print(qquery)
 
 
