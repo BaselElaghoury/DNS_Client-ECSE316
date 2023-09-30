@@ -104,6 +104,7 @@ def create_dns_query(timeout, max_retries, port, mx, ns, server, name):
     # print(qname)
 
     # DNS question fields (4 bytes each)
+    global QTYPE
     QTYPE = '0000000000000001'
     if (mx and ns == False):
         QTYPE = '0000000000000001' #Type A
@@ -113,6 +114,12 @@ def create_dns_query(timeout, max_retries, port, mx, ns, server, name):
 
     if(mx):
         QTYPE = '0000000000001111'
+    else:
+        QTYPE = '0000000000000001'
+
+    print('THIS IS QTYPE: {}'.format(QTYPE))
+
+    
 
     QTYPE_int = int(QTYPE, 2)
     # QTYPE_hex = hex(QTYPE_int)[2:]
@@ -157,6 +164,7 @@ def parse_dns_response(response): #not sure i need self here
 # For each record in the Answer, Additional, and Authority sections, if applicable
 
     response_hex = response.hex()
+    print(response_hex)
 
     #Header
     header = response_hex[:24] #first 24 - 12 bytes #CAN PROBABLY REMOVE THIS AND TRUNCATE DIRECTLY FROM RESPONSEHEX
@@ -187,6 +195,7 @@ def parse_dns_response(response): #not sure i need self here
         ttl = respdns[ptr + 12: ptr + 20]
         rdlength = respdns[ptr + 20: ptr + 24]
         rdata = respdns[ptr + 24: ptr + 24 + int(rdlength, 16) * 2]
+        print('this is one response')
 
     rr = { #IS THIS NECESSARY????
         'name': name,
@@ -303,6 +312,10 @@ def parse_dns_response(response): #not sure i need self here
 
 def send_dns_query(query, timeout, max_retries, port, mx, ns, server, name):
     try:
+
+        global received_bool
+        received_bool = False
+
         udp_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         # Set a timeout for the socket (optional)
         udp_socket.settimeout(timeout)  # Set the timeout to 5 seconds
@@ -313,25 +326,38 @@ def send_dns_query(query, timeout, max_retries, port, mx, ns, server, name):
         server_arg = binascii.unhexlify(query)
         tuple_server = (server, port)
 
+        print('IT GOT HERE1')
+
         
         udp_socket.sendto(server_arg, tuple_server)
 
+        print('it got here 11111')
+
         # Receive the response from the server
         # response, tuple_server = udp_socket.recvfrom(1024)  # Adjust buffer size as needed
-        info = udp_socket.recv(8192) # Check if it works with 1024 buffer
+        info = udp_socket.recv(1024) # Check if it works with 1024 buffer
+        
         # answer = binascii.hexlify(info).decode("utf-8")
+        print('IT GOT HERE2')
 
-        parsed_res = parse_dns_response(info)
+        # parsed_res = parse_dns_response(info)
 
         
 
         # Process and print the response
         # You'll need to parse the response according to the DNS protocol
-        # print("Received response:", answer)
-        
+        # print("Received response:", parsed_res)
+        # print("Received response IN:", info)
+
+        # parsed_res = parse_dns_response(info)
 
         # Close the socket
         udp_socket.close()
+
+        
+        received_bool = True
+
+        return info
 
     except socket.timeout:
         print("Socket timed out. The DNS server did not respond within the specified timeout.")
@@ -353,10 +379,32 @@ if __name__ == "__main__":
         # print("Server:", args.server)
         # print("Name:", args.name)
 
-        qquery = create_dns_query(args.timeout, args.max_retries, args.port, args.mx, args.ns, args.server, args.name)
-        squery = send_dns_query(qquery, args.timeout, args.max_retries, args.port, args.mx, args.ns, args.server, args.name) #in a loop depending on number of retries
+        # print(QTYPE)
 
+        print(args.ns)
+        req_type = 'none'
+        if(args.mx and args.ns):
+            req_type = 'Not possible' #CHANGE THIS FOR CORRECT ERROR MESSAGE AT SOME POINT AND STOP THE REQUEST
+        if(args.mx):
+            req_type = 'mx'
+        if(args.ns):
+            req_type = 'ns'
+        if((args.mx or args.ns) != True):
+            req_type = 'A'
+
+        
+        # if()
+
+        print('DnsClient sending request for', args.name) # should give mcgill
+        print('Server:', args.server ) #should give IP ADDRESS
+        print('Request type:', req_type)
+        
+# Request type: [A | MX | NS] 
+
+        qquery = create_dns_query(args.timeout, args.max_retries, args.port, args.mx, args.ns, args.server, args.name)
+        query_rec = send_dns_query(qquery, args.timeout, args.max_retries, args.port, args.mx, args.ns, args.server, args.name) #in a loop depending on number of retries
+
+        if(received_bool):
+            print("Received response OUT:", query_rec) #probs wanna replace the received query here by the parsed one
 
         # print(qquery)
-
-    
