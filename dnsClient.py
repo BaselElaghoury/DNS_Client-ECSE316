@@ -303,6 +303,9 @@ def parse_dns_response(response): #not sure i need self here
 
 def send_dns_query(query, timeout, max_retries, port, mx, ns, server, name):
     try:
+        #Initialize time variables
+        start_time = 0
+        end_time = 0
         udp_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         # Set a timeout for the socket (optional)
         udp_socket.settimeout(timeout)  # Set the timeout to 5 seconds
@@ -313,12 +316,18 @@ def send_dns_query(query, timeout, max_retries, port, mx, ns, server, name):
         server_arg = binascii.unhexlify(query)
         tuple_server = (server, port)
 
-        
+        # Write start time
+        start_time = time.time()
         udp_socket.sendto(server_arg, tuple_server)
 
         # Receive the response from the server
         # response, tuple_server = udp_socket.recvfrom(1024)  # Adjust buffer size as needed
         info = udp_socket.recv(8192) # Check if it works with 1024 buffer
+        # Write end time
+        end_time = time.time()
+        # Calculate total response time
+        total_time = end_time - start_time
+        print(total_time)
         # answer = binascii.hexlify(info).decode("utf-8")
 
         parsed_res = parse_dns_response(info)
