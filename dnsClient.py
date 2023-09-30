@@ -44,6 +44,7 @@ def create_dns_query(timeout, max_retries, port, mx, ns, server, name):
     ID = random.randint(1, 65535)  # You can choose any ID value
     # print(ID)
     binary_id = bin(ID)[2:]  # [2:] is used to remove the '0b' prefix
+    print("This is the binary id:", binary_id)
     # print(binary_id)
     # ID = hex(ID)[2:]
     # print(ID)
@@ -53,7 +54,7 @@ def create_dns_query(timeout, max_retries, port, mx, ns, server, name):
     # print(header)
     header_int = int(header, 2)
     header_hex = hex(header_int)[2:]
-    print(header_hex)
+    print("This is the header in hex:", header_hex)
 
     # QR = format(0b0, '01b')       # 0 for query (not a response)
     # OPCODE = format(0b0000, '04b')  # 4-bit field set to 0 for standard query
@@ -89,6 +90,11 @@ def create_dns_query(timeout, max_retries, port, mx, ns, server, name):
             qname += bytes([ord(char)])  # Encode characters as ASCII values
 
     qname += b'\x00'
+    qnamebinary = bin(int.from_bytes(qname, byteorder='big'))[2:]
+    print("qnamebinary:", qnamebinary)
+    global qnamebinsize
+    qnamebinsize = len(qnamebinary)
+
     qname = qname.hex() #MAKE SURE THAT WE WANT IN HEX
     # print(qname)
 
@@ -106,10 +112,6 @@ def create_dns_query(timeout, max_retries, port, mx, ns, server, name):
     else:
         QTYPE = '0000000000000001'
 
-    print('THIS IS QTYPE: {}'.format(QTYPE))
-
-    
-
     QTYPE_int = int(QTYPE, 2)
     # QTYPE_hex = hex(QTYPE_int)[2:]
     QTYPE_hex = format(QTYPE_int, '04x')
@@ -118,17 +120,11 @@ def create_dns_query(timeout, max_retries, port, mx, ns, server, name):
     # QTYPE = query_type
     QCLASS = '0000000000000001'  # IN (Internet)
     QCLASS_int = int(QCLASS, 2)
-    # print('this is qclass int')
-    # print(QCLASS_int)
+   
     QCLASS_hex = format(QCLASS_int, '04x')
-    print(len(QCLASS))
-    # print('this is qclass hex')
-    print(QCLASS_hex)
-
     # Build DNS question section
     # question = struct.pack('!HH', QTYPE, QCLASS)
     question = QTYPE_hex + QCLASS_hex
-    print(question)
 
     # qname_bytes = bytes.fromhex(qname)
     # Combine header and question
@@ -136,11 +132,10 @@ def create_dns_query(timeout, max_retries, port, mx, ns, server, name):
     query = header_hex + qname + question
 
     global qname_qtype_qclass_size
-    qname_qtype_qclass_size = len(qname + QTYPE + QCLASS)
-    print('This is the QNAME QTYPE QCLASS SIZE: {}', qname_qtype_qclass_size)
+    qname_qtype_qclass_size = len(qnamebinary + QTYPE + QCLASS)
 
-    print('this is the full query')
-    print(query)
+    print('this is the full query:', query)
+    
     # query_bytes = bytes.fromhex(query)  # Convert hexadecimal string to bytes
     # print(query_bytes)
     return query
@@ -152,112 +147,125 @@ def parse_dns_response(response): #not sure i need self here
 # Extract relevant information from the response
 # For each record in the Answer, Additional, and Authority sections, if applicable
 
-    response_hex = response.hex()
-    print(response_hex)
+    response_binary = bin(int.from_bytes(response, byteorder='big'))[2:]
+    
+    # Header
+    id = response_binary[:16]
+    flags = response_binary[16:32]
+    # Individual flags
+    QR = response_binary[16:17]
+    OPcode = response_binary[17:21]
+    AA = response_binary[21:22]
+    TC = response_binary[22:23]
+    RD = response_binary[23:24]
+    RA = response_binary[24:25]
+    Z = response_binary[25:28]
+    Rcode = response_binary[28:32]
 
-    #Header
-    header = response_hex[:24] #first 24 - 12 bytes #CAN PROBABLY REMOVE THIS AND TRUNCATE DIRECTLY FROM RESPONSEHEX
-    id = header[:4]
-    flags = header[4:8]
-    qdcount = header[8:12]
-    ancount = header[12:16]
-    nscount = header[16:20]
-    arcount = header[20:24]
+    qdcount = response_binary[32:48]
+    ancount = response_binary[48:64]
+    nscount = response_binary[64:80]
+    arcount = response_binary[80:96]
 
     #questions
-    questions = response_hex[24: 24 + qname_qtype_qclass_size] #HOPEFULLY THIS WORKS
+    #questions_in_binary = response_binary[96: 96 + qname_qtype_qclass_size] #HOPEFULLY THIS WORKS
+    responses_in_binary = response_binary[96 + qname_qtype_qclass_size:]
+    resps = []
+    #resps_counter = 0
+    resps_number = int(ancount, 2)
+    pointer = 0 #to iterate through responses
 
-    respdns = response_hex[24 + qname_qtype_qclass_size:]
+    for _ in range(resps_number):
+        resp_name = responses_in_binary[pointer:pointer + qnamebinsize]
+        resp_type = responses_in_binary[pointer + qnamebinsize: pointer + qnamebinsize + 16]
+        resp_class = responses_in_binary[pointer + 16 + qnamebinsize : pointer + 32 + qnamebinsize]
+        resp_ttl = responses_in_binary[pointer + 32 + qnamebinsize : pointer + 64 + qnamebinsize]
+        resp_rdlength = responses_in_binary[pointer + 64 + qnamebinsize : pointer + 80 + qnamebinsize]
+        resp_rdata = responses_in_binary[pointer + 80 + qnamebinsize : pointer + 80 + qnamebinsize + int(resp_rdlength, 2) * 8]
+        print('This is one response')
+        pointer += int(resp_rdlength, 2) * 8 + 96
 
-    ptr = 0 #to iterate through responses
+        single_response = { 
+            'resp_name': resp_name,
+            'resp_type': resp_type,
+            'resp_class': resp_class,
+            'resp_ttl': resp_ttl,
+            'resp_rdlength': resp_rdlength,
+            'resp_rdata': resp_rdata 
+        }
 
-    #extract answers CHANGEEEEEEEE
-    rrs = []
-    count_rrs = 0
-    num_of_rrs = int(ancount, 16)
+        resps.append(single_response)
 
-    while ptr < len(respdns) and count_rrs < num_of_rrs:
-        count_rrs += 1
-        name = respdns[ptr:ptr + 4]
-        response_type = respdns[ptr + 4: ptr + 8]
-        response_class = respdns[ptr + 8: ptr + 12]
-        ttl = respdns[ptr + 12: ptr + 20]
-        rdlength = respdns[ptr + 20: ptr + 24]
-        rdata = respdns[ptr + 24: ptr + 24 + int(rdlength, 16) * 2]
-        print('this is one response')
-
-    rr = { #IS THIS NECESSARY????
-        'name': name,
-        'response_type': response_type,
-        'response_class': response_class,
-        'ttl': ttl,
-        'rdlength': rdlength,
-        'rdata': rdata 
-    }
-
-    rrs.append(rr)
-
-    ptr += int(rdlength, 16)*2 + 24
+    # ptr += int(rdlength, 16)*2 + 24
 
     #NOT SURE IF WE NEED TO ITERATE THROUGH AUTHORATIVE SEE PIC IF NECESSARY
 
     #extarct additionals
-    count_add_rrs = 0
-    num_of_add_rrs = int(arcount, 16)
-    add_rrs = []
+    #count_add_rrs = 0
+    add_num_resps = int(arcount, 2)
+    add_resps = []
 
-    while ptr < len(respdns) and count_add_rrs < num_of_add_rrs:
-        count_add_rrs += 1
-        name = respdns[ptr:ptr + 4]
-        response_type = respdns[ptr + 4: ptr + 8]
-        response_class = respdns[ptr + 8: ptr + 12]
-        ttl = respdns[ptr + 12: ptr + 20]
-        rdlength = respdns[ptr + 20: ptr + 24]
-        rdata = respdns[ptr + 24: ptr + 24 + int(rdlength, 16) * 2]
 
-    add_rr = { #IS THIS NECESSARY????
-        'name': name,
-        'response_type': response_type,
-        'response_class': response_class,
-        'ttl': ttl,
-        'rdlength': rdlength,
-        'rdata': rdata 
-    }
+    for _ in range(add_num_resps):
+        #resps_counter += 1
+        add_name = responses_in_binary[pointer:pointer + qnamebinsize]
+        add_response_type = responses_in_binary[pointer + qnamebinsize : pointer + 16 + qnamebinsize]
+        add_response_class = responses_in_binary[pointer + 16 + qnamebinsize : pointer + 32 + qnamebinsize]
+        add_ttl = responses_in_binary[pointer + 32 + qnamebinsize : pointer + qnamebinsize + 64]
+        add_rdlength = responses_in_binary[pointer + 64 + qnamebinsize : pointer + 80 + qnamebinsize]
+        add_rdata = responses_in_binary[pointer + 80 + qnamebinsize : pointer + 80 + qnamebinsize + int(add_rdlength, 2) * 8]
+        print('This is one response')
+        pointer += int(add_rdlength, 2) * 8 + 96
 
-    add_rrs.append(add_rr)
-
-    ptr += int(rdlength, 16)*2 + 24
+        add_resp = { #IS THIS NECESSARY????
+            'add_name': add_name,
+            'add_response_type': add_response_type,
+            'add_response_class': add_response_class,
+            'add_ttl': add_ttl,
+            'add_rdlength': add_rdlength,
+            'add_rdata': add_rdata 
+        }
+        add_resps.append(add_resp)
 
     #RESP OBJ W APPROPRIATE INFO
-    response_obj = {
+    complete_resp = {
         'id': id,
         'flags': flags,
+        'QR': QR,
+        'OPcode': OPcode,
+        'AA': AA,
+        'TC': TC,
+        'RD': RD,
+        'RA': RA,
+        'Z': Z,
+        'Rcode': Rcode,
         'qdcount': qdcount,
         'ancount': ancount,
         'nscount': nscount,
         'arcount': arcount,
-        'rrs': rrs,
-        'add_rrs': add_rrs
+        'resps': resps,
+        'add_resps': add_resps
     }
-
+    
     #ANALYZE RCODE AND RETURN CORRESPONDING ERROR
 
-    flagsbin = bin(int(response_obj['flags'], 16)) #THESE TWO LINES ARE WEIRD
-    rcode = int(flagsbin[-4:], 2)
+    #flagsbin = bin(int(complete_resp['flags'], 16)) #THESE TWO LINES ARE WEIRD
+    #rcode = int(flagsbin[-4:], 2)
 
-    if rcode == 1:
+
+    if int(Rcode, 2) == 1:
         raise Exception("The name server was unable to interpret the query")
-    elif rcode == 2:
+    if int(Rcode, 2) == 2:
         raise Exception("Server failure: the name server was unable to process this query due to a problem with the name server")
-    elif rcode == 3:
+    if int(Rcode, 2) == 3:
         raise Exception("Name error: meaningful only for responses from an authoritative name server, this code signifies that the domain name referenced in the query does not exist")
-    elif rcode == 4:
+    if int(Rcode, 2) == 4:
         raise Exception("Not implemented: the name server does not support the requested kind of query")
-    elif rcode == 5:
+    if int(Rcode, 2) == 5:
         raise Exception("Refused: the name server refuses to perform the requested operation for policy reasons")
 
 
-    return response_obj
+    return complete_resp
 
 
 # # Print the response summary
@@ -317,18 +325,14 @@ def send_dns_query(query, timeout, max_retries, port, mx, ns, server, name):
         # Send the DNS query to the server
         server_arg = binascii.unhexlify(query)
         tuple_server = (server, port)
-
-        print('IT GOT HERE1')
-
         # Write start time
         start_time = time.time()
         udp_socket.sendto(server_arg, tuple_server)
-
-        print('it got here 11111')
-
         # Receive the response from the server
         # response, tuple_server = udp_socket.recvfrom(1024)  # Adjust buffer size as needed
         info = udp_socket.recv(8192) # Check if it works with 1024 buffer
+
+        response = binascii.hexlify(info).decode("utf-8")
         # Write end time
         end_time = time.time()
         # Calculate total response time
@@ -389,24 +393,32 @@ if __name__ == "__main__":
         print('Request type:', req_type)
         
         qquery = create_dns_query(args.timeout, args.max_retries, args.port, args.mx, args.ns, args.server, args.name)
-        query_rec = send_dns_query(qquery, args.timeout, args.max_retries, args.port, args.mx, args.ns, args.server, args.name) #in a loop depending on number of retries
-        # parsed_res = parse_dns_response(query_rec)
+
+        num_retries = 0
+        num_max_retries = args.max_retries
+        while num_max_retries >= 0:
+            query_rec = send_dns_query(qquery, args.timeout, args.max_retries, args.port, args.mx, args.ns, args.server, args.name) #in a loop depending on number of retries
+            if(received_bool):
+                break
+            num_max_retries -= 1
+            num_retries += 1
+
 
         if(received_bool):
-            print('Response  received  after', total_time, 'seconds   ([num-retries]   retries) ')
+            parsed_res = parse_dns_response(query_rec)
+            print(parsed_res)
+            print('Response  received  after', total_time, 'seconds (', num_retries, ' retries) ')
             print("Received response:", query_rec) #probs wanna replace the received query here by the parsed one
 
-        # if(answers_bool): #NEED ANSWERS BOOL
-        #     print('***Answer Section ([num-answers] records)***')
+            int_ancount = int(parsed_res['ancount'], 2)
+            if(int_ancount > 0): #NEED ANSWERS BOOL
+                print('***Answer Section (', int_ancount,'records)***')
 
-        #     #Then, if the response contains A (IP address) records, each should be printed on a line of the form:
-        #     # for(num_answers):
-        #     for(len(answers)): #NEED ANSWERS LIST
-        #         if(resp_type == 'A'):
-        #             print('IP   [ip address]    [seconds can cache]    [auth | nonauth]') #SHOULD I REPLACE THE 'TABS' BY THE ACTUAL TAB CHARACTER t{}
-        #         if(resp_type == 'CNAME'):
-        #             print('CNAME    [alias]    [seconds can cache]    [auth | nonauth]')
-            
-            
-
-        # print(qquery)
+            # Then, if the response contains A (IP address) records, each should be printed on a line of the form:
+            i = 0
+            for i in int_ancount == 0 :
+                #for(parsed_res['resps']): #NEED ANSWERS LIST
+                if(parsed_res['resps'][i]['resp_type'] == 'A'):
+                    print('IP   [ip address]    [seconds can cache]    [auth | nonauth]') #SHOULD I REPLACE THE 'TABS' BY THE ACTUAL TAB CHARACTER t{}
+                if(resp_type == 'CNAME'):
+                    print('CNAME    [alias]    [seconds can cache]    [auth | nonauth]')
