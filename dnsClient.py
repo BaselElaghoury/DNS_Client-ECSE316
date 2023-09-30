@@ -248,7 +248,7 @@ class DNS:
         rcode = int(flagsbin[-4:], 2)
 
         if rcode == 1:
-            raise Exception("he name server was unable to interpret the query")
+            raise Exception("The name server was unable to interpret the query")
         elif rcode == 2:
             raise Exception("Server failure: the name server was unable to process this query due to a problem with the name server")
         elif rcode == 3:
