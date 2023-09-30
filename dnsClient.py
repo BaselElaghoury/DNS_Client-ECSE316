@@ -4,20 +4,9 @@ import struct
 import sys
 import time
 import random
-import binascii #Can we import this? Double check !
+import binascii
 
 
-
-#Header Info
-    #We recommend that your application use a new random 16-bit number for each request.
-    #QR is a 1-bit field that specifies whether this message is a query (0) or a response (1).
-    #OPCODE is a 4-bit field that specifies the kind of query in this message. Note: You should set this field to 0, representing a standard query.
-    #AA is a bit that is only meaningful in response packets and indicates whether (1) or not (0) the name server is an authority for a domain name in the question section. Note: You should use this field to report whether or not the response you receive is authoritative
-    #... (check primer)
-
-# class DNS:
-    # def __init__(self, args):
-    # DNS query types
 A_TYPE = 1
 MX_TYPE = 15
 NS_TYPE = 2
@@ -343,17 +332,11 @@ def send_dns_query(query, timeout, max_retries, port, mx, ns, server, name):
         # Write end time
         end_time = time.time()
         # Calculate total response time
+        global total_time
         total_time = end_time - start_time
-        print(total_time)
-        # answer = binascii.hexlify(info).decode("utf-8")
-        print('IT GOT HERE2')
 
         # parsed_res = parse_dns_response(info)
 
-        
-
-        # Process and print the response
-        # You'll need to parse the response according to the DNS protocol
         # print("Received response:", parsed_res)
         # print("Received response IN:", info)
 
@@ -401,18 +384,29 @@ if __name__ == "__main__":
             req_type = 'A'
 
         
-        # if()
-
         print('DnsClient sending request for', args.name) # should give mcgill
         print('Server:', args.server ) #should give IP ADDRESS
         print('Request type:', req_type)
         
-# Request type: [A | MX | NS] 
-
         qquery = create_dns_query(args.timeout, args.max_retries, args.port, args.mx, args.ns, args.server, args.name)
         query_rec = send_dns_query(qquery, args.timeout, args.max_retries, args.port, args.mx, args.ns, args.server, args.name) #in a loop depending on number of retries
+        # parsed_res = parse_dns_response(query_rec)
 
         if(received_bool):
-            print("Received response OUT:", query_rec) #probs wanna replace the received query here by the parsed one
+            print('Response  received  after', total_time, 'seconds   ([num-retries]   retries) ')
+            print("Received response:", query_rec) #probs wanna replace the received query here by the parsed one
+
+        # if(answers_bool): #NEED ANSWERS BOOL
+        #     print('***Answer Section ([num-answers] records)***')
+
+        #     #Then, if the response contains A (IP address) records, each should be printed on a line of the form:
+        #     # for(num_answers):
+        #     for(len(answers)): #NEED ANSWERS LIST
+        #         if(resp_type == 'A'):
+        #             print('IP   [ip address]    [seconds can cache]    [auth | nonauth]') #SHOULD I REPLACE THE 'TABS' BY THE ACTUAL TAB CHARACTER t{}
+        #         if(resp_type == 'CNAME'):
+        #             print('CNAME    [alias]    [seconds can cache]    [auth | nonauth]')
+            
+            
 
         # print(qquery)
