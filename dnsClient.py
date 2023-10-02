@@ -34,6 +34,8 @@ def parse_arguments():
 
     #Read arguments from command line
     args = parser.parse_args()
+    args.server = args.server.replace("@", "")
+
     # print(args)
     return args
 
@@ -91,9 +93,15 @@ def create_dns_query(timeout, max_retries, port, mx, ns, server, name):
 
     qname += b'\x00'
     qnamebinary = bin(int.from_bytes(qname, byteorder='big'))[2:]
-    print("qnamebinary:", qnamebinary)
+
     global qnamebinsize
-    qnamebinsize = len(qnamebinary)
+
+    qname_size_in_bytes = len(qname)
+    qnamebinsize = qname_size_in_bytes * 8
+
+    print("qnamebinary:", qnamebinsize)
+    # global qnamebinsize
+    # qnamebinsize = len(qname_size_in_bits)
 
     qname = qname.hex() #MAKE SURE THAT WE WANT IN HEX
     # print(qname)
@@ -132,7 +140,9 @@ def create_dns_query(timeout, max_retries, port, mx, ns, server, name):
     query = header_hex + qname + question
 
     global qname_qtype_qclass_size
-    qname_qtype_qclass_size = len(qnamebinary + QTYPE + QCLASS)
+    global qname_qtype_qclass
+    qname_qtype_qclass = qnamebinary + QTYPE + QCLASS
+    qname_qtype_qclass_size = len(qname_qtype_qclass)
 
     print('this is the full query:', query)
     
@@ -147,125 +157,218 @@ def parse_dns_response(response): #not sure i need self here
 # Extract relevant information from the response
 # For each record in the Answer, Additional, and Authority sections, if applicable
 
-    response_binary = bin(int.from_bytes(response, byteorder='big'))[2:]
-    
-    # Header
-    id = response_binary[:16]
-    flags = response_binary[16:32]
-    # Individual flags
-    QR = response_binary[16:17]
-    OPcode = response_binary[17:21]
-    AA = response_binary[21:22]
-    TC = response_binary[22:23]
-    RD = response_binary[23:24]
-    RA = response_binary[24:25]
-    Z = response_binary[25:28]
-    Rcode = response_binary[28:32]
+    global id_hex, flags_hex, qdcount_hex, ancount_hex, nscount_hex, arcount_hex, resps, add_resps
 
-    qdcount = response_binary[32:48]
-    ancount = response_binary[48:64]
-    nscount = response_binary[64:80]
-    arcount = response_binary[80:96]
+    response = response.hex()
+    header = response[:24]
+    id_hex = header[:4]
+    flags_hex = header[4:8]
+    qdcount_hex = header[8:12]
+    ancount_hex = header[12:16]
+    nscount_hex = header[16:20]
+    arcount_hex = header[20:24]
+
+    questions_hex = hex(int(qname_qtype_qclass, 2))[2:]
+    questions_hex_size = len(questions_hex)
+    #dns_questions = response[24: 24 + questions_hex_size] #change the names n stuff
+
+    dns_response = response[24 + questions_hex_size:]
+
+    resps = []
+    #resps_counter = 0
+    resps_number = int(ancount_hex, 16)
+    pointer = 1 #to iterate through responses
+
+    global resp_name, resp_type, resp_class, resp_ttl, resp_rdlength, resp_rdata
+
+    for _ in range(resps_number):
+        resp_name = dns_response[pointer:pointer + 4]
+        resp_type = dns_response[pointer + 4: pointer + 8] #ptr + 4: ptr + 8 (in hex)
+        resp_class = dns_response[pointer + 8 : pointer + 12]
+        resp_ttl = dns_response[pointer + 12 : pointer + 20]
+        resp_rdlength = dns_response[pointer + 20 : pointer + 24]
+        resp_rdata = dns_response[pointer + 24 : pointer + 24 + int(resp_rdlength, 16) * 2]
+        print('This is one response')
+        pointer += int(resp_rdlength, 16) * 2 + 24
+
+        # single_response = { 
+        #     'resp_name': resp_name,
+        #     'resp_type': resp_type,
+        #     'resp_class': resp_class,
+        #     'resp_ttl': resp_ttl,
+        #     'resp_rdlength': resp_rdlength,
+        #     'resp_rdata': resp_rdata 
+        # }
+
+        #resps.append(single_response)
+
+    #AUTHORATIVE
+    count_auth = 0
+    num_auth = int(nscount_hex, 16)
+    for _ in range(num_auth):
+        resp_rdlength = dns_response[pointer + 20 : pointer + 24]
+        pointer += int(resp_rdlength, 16) * 2 + 24
+
+
+
+    #extarct additionals
+    add_num_resps = int(arcount_hex, 16)
+    add_resps = []
+    global add_name, add_response_type, add_response_class, add_ttl, add_rdlength, add_rdata
+    for _ in range(add_num_resps):
+        #resps_counter += 1
+        add_name = dns_response[pointer:pointer + 4]
+        add_response_type = dns_response[pointer + 4: pointer + 8] #ptr + 4: ptr + 8 (in hex)
+        add_response_class = dns_response[pointer + 8 : pointer + 12]
+        add_ttl = dns_response[pointer + 12 : pointer + 20]
+        add_rdlength = dns_response[pointer + 20 : pointer + 24]
+        add_rdata = dns_response[pointer + 24 : pointer + 24 + int(resp_rdlength, 16) * 2]
+        print('This is one response')
+        pointer += int(resp_rdlength, 16) * 2 + 24
+
+        # add_resp = { #IS THIS NECESSARY????
+        #     'add_name': add_name,
+        #     'add_response_type': add_response_type,
+        #     'add_response_class': add_response_class,
+        #     'add_ttl': add_ttl,
+        #     'add_rdlength': add_rdlength,
+        #     'add_rdata': add_rdata 
+        # }
+        #add_resps.append(add_resp)
+
+    #RESP OBJ W APPROPRIATE INFO
+    # complete_resp = {
+    #     'id_hex': id_hex,
+    #     'flags_hex': flags_hex,
+    #     'qdcount_hex': qdcount_hex,
+    #     'ancount_hex': ancount_hex,
+    #     'nscount_hex': nscount_hex,
+    #     'arcount_hex': arcount_hex,
+    #     'resps': resps,
+    #     'add_resps': add_resps
+    # }
+
+    # response_binary = bin(int.from_bytes(response, byteorder='big'))[2:]
+    
+    # # Header
+    # id = response_binary[:16]
+    # flags = response_binary[16:32] #hex :4
+    # # Individual flags hex 4:8
+    # QR = response_binary[16:17]
+    # OPcode = response_binary[17:21]
+    # AA = response_binary[21:22]
+    # TC = response_binary[22:23]
+    # RD = response_binary[23:24]
+    # RA = response_binary[24:25]
+    # Z = response_binary[25:28]
+    # Rcode = response_binary[28:32]
+
+    # qdcount = response_binary[32:48] #hex 8:12
+    # ancount = response_binary[48:64] #hex 12:16
+    # nscount = response_binary[64:80] #hex 16:20
+    # arcount = response_binary[80:96] #hex 20:24
 
     #questions
     #questions_in_binary = response_binary[96: 96 + qname_qtype_qclass_size] #HOPEFULLY THIS WORKS
-    responses_in_binary = response_binary[96 + qname_qtype_qclass_size:]
-    resps = []
-    #resps_counter = 0
-    resps_number = int(ancount, 2)
-    pointer = 0 #to iterate through responses
+    # responses_in_binary = response_binary[96 + qname_qtype_qclass_size:] #hex: 24: 24 + len(hex_qname_qtype_qclass)
+    # resps = []
+    # #resps_counter = 0
+    # resps_number = int(ancount, 2)
+    # pointer = 0 #to iterate through responses
 
-    for _ in range(resps_number):
-        resp_name = responses_in_binary[pointer:pointer + qnamebinsize]
-        resp_type = responses_in_binary[pointer + qnamebinsize: pointer + qnamebinsize + 16]
-        resp_class = responses_in_binary[pointer + 16 + qnamebinsize : pointer + 32 + qnamebinsize]
-        resp_ttl = responses_in_binary[pointer + 32 + qnamebinsize : pointer + 64 + qnamebinsize]
-        resp_rdlength = responses_in_binary[pointer + 64 + qnamebinsize : pointer + 80 + qnamebinsize]
-        resp_rdata = responses_in_binary[pointer + 80 + qnamebinsize : pointer + 80 + qnamebinsize + int(resp_rdlength, 2) * 8]
-        print('This is one response')
-        pointer += int(resp_rdlength, 2) * 8 + 96
+    # for _ in range(resps_number):
+    #     resp_name = responses_in_binary[pointer:pointer + 16]
+    #     resp_type = responses_in_binary[pointer + 16: pointer + 32] #ptr + 4: ptr + 8 (in hex)
+    #     resp_class = responses_in_binary[pointer + 32 : pointer + 48]
+    #     resp_ttl = responses_in_binary[pointer + 48 : pointer + 80]
+    #     resp_rdlength = responses_in_binary[pointer + 80 : pointer + 96 ]
+    #     resp_rdata = responses_in_binary[pointer + 96 : pointer + 96 + int(resp_rdlength, 2) * 8]
+    #     print('This is one response')
+    #     pointer += int(resp_rdlength, 2) * 8 + 96
 
-        single_response = { 
-            'resp_name': resp_name,
-            'resp_type': resp_type,
-            'resp_class': resp_class,
-            'resp_ttl': resp_ttl,
-            'resp_rdlength': resp_rdlength,
-            'resp_rdata': resp_rdata 
-        }
+    #     single_response = { 
+    #         'resp_name': resp_name,
+    #         'resp_type': resp_type,
+    #         'resp_class': resp_class,
+    #         'resp_ttl': resp_ttl,
+    #         'resp_rdlength': resp_rdlength,
+    #         'resp_rdata': resp_rdata 
+    #     }
 
-        resps.append(single_response)
+    #     resps.append(single_response)
 
-    # ptr += int(rdlength, 16)*2 + 24
+    # # ptr += int(rdlength, 16)*2 + 24
 
-    #NOT SURE IF WE NEED TO ITERATE THROUGH AUTHORATIVE SEE PIC IF NECESSARY
+    # #NOT SURE IF WE NEED TO ITERATE THROUGH AUTHORATIVE SEE PIC IF NECESSARY
 
-    #extarct additionals
-    #count_add_rrs = 0
-    add_num_resps = int(arcount, 2)
-    add_resps = []
+    # #extarct additionals
+    # #count_add_rrs = 0
+    # add_num_resps = int(arcount, 2)
+    # add_resps = []
 
 
-    for _ in range(add_num_resps):
-        #resps_counter += 1
-        add_name = responses_in_binary[pointer:pointer + qnamebinsize]
-        add_response_type = responses_in_binary[pointer + qnamebinsize : pointer + 16 + qnamebinsize]
-        add_response_class = responses_in_binary[pointer + 16 + qnamebinsize : pointer + 32 + qnamebinsize]
-        add_ttl = responses_in_binary[pointer + 32 + qnamebinsize : pointer + qnamebinsize + 64]
-        add_rdlength = responses_in_binary[pointer + 64 + qnamebinsize : pointer + 80 + qnamebinsize]
-        add_rdata = responses_in_binary[pointer + 80 + qnamebinsize : pointer + 80 + qnamebinsize + int(add_rdlength, 2) * 8]
-        print('This is one response')
-        pointer += int(add_rdlength, 2) * 8 + 96
+    # for _ in range(add_num_resps):
+    #     #resps_counter += 1
+    #     add_name = responses_in_binary[pointer:pointer + 16]
+    #     add_response_type = responses_in_binary[pointer + 16: pointer + 32]
+    #     add_response_class = responses_in_binary[pointer + 32 : pointer + 48]
+    #     add_ttl = responses_in_binary[pointer + 48 : pointer + 80]
+    #     add_rdlength = responses_in_binary[pointer + 80 : pointer + 96]
+    #     add_rdata = responses_in_binary[pointer + 96 : pointer + 96 + int(resp_rdlength, 2) * 8]
+    #     print('This is one response')
+    #     pointer += int(add_rdlength, 2) * 8 + 96
 
-        add_resp = { #IS THIS NECESSARY????
-            'add_name': add_name,
-            'add_response_type': add_response_type,
-            'add_response_class': add_response_class,
-            'add_ttl': add_ttl,
-            'add_rdlength': add_rdlength,
-            'add_rdata': add_rdata 
-        }
-        add_resps.append(add_resp)
+    #     add_resp = { #IS THIS NECESSARY????
+    #         'add_name': add_name,
+    #         'add_response_type': add_response_type,
+    #         'add_response_class': add_response_class,
+    #         'add_ttl': add_ttl,
+    #         'add_rdlength': add_rdlength,
+    #         'add_rdata': add_rdata 
+    #     }
+    #     add_resps.append(add_resp)
 
-    #RESP OBJ W APPROPRIATE INFO
-    complete_resp = {
-        'id': id,
-        'flags': flags,
-        'QR': QR,
-        'OPcode': OPcode,
-        'AA': AA,
-        'TC': TC,
-        'RD': RD,
-        'RA': RA,
-        'Z': Z,
-        'Rcode': Rcode,
-        'qdcount': qdcount,
-        'ancount': ancount,
-        'nscount': nscount,
-        'arcount': arcount,
-        'resps': resps,
-        'add_resps': add_resps
-    }
+    # #RESP OBJ W APPROPRIATE INFO
+    # complete_resp = {
+    #     'id': id,
+    #     'flags': flags,
+    #     'QR': QR,
+    #     'OPcode': OPcode,
+    #     'AA': AA,
+    #     'TC': TC,
+    #     'RD': RD,
+    #     'RA': RA,
+    #     'Z': Z,
+    #     'Rcode': Rcode,
+    #     'qdcount': qdcount,
+    #     'ancount': ancount,
+    #     'nscount': nscount,
+    #     'arcount': arcount,
+    #     'resps': resps,
+    #     'add_resps': add_resps
+    # }
     
     #ANALYZE RCODE AND RETURN CORRESPONDING ERROR
 
     #flagsbin = bin(int(complete_resp['flags'], 16)) #THESE TWO LINES ARE WEIRD
     #rcode = int(flagsbin[-4:], 2)
 
+    bin_flags = bin(int(flags_hex, 16))
+    Rcode = int(bin_flags[-4:], 2) #CHANGE ALL OF THIS
 
-    if int(Rcode, 2) == 1:
+    if Rcode == 1:
         raise Exception("The name server was unable to interpret the query")
-    if int(Rcode, 2) == 2:
+    if Rcode == 2:
         raise Exception("Server failure: the name server was unable to process this query due to a problem with the name server")
-    if int(Rcode, 2) == 3:
+    if Rcode == 3:
         raise Exception("Name error: meaningful only for responses from an authoritative name server, this code signifies that the domain name referenced in the query does not exist")
-    if int(Rcode, 2) == 4:
+    if Rcode == 4:
         raise Exception("Not implemented: the name server does not support the requested kind of query")
-    if int(Rcode, 2) == 5:
+    if Rcode == 5:
         raise Exception("Refused: the name server refuses to perform the requested operation for policy reasons")
 
 
-    return complete_resp
+    return True
 
 
 # # Print the response summary
@@ -410,15 +513,20 @@ if __name__ == "__main__":
             print('Response  received  after', total_time, 'seconds (', num_retries, ' retries) ')
             print("Received response:", query_rec) #probs wanna replace the received query here by the parsed one
 
-            int_ancount = int(parsed_res['ancount'], 2)
+            int_ancount = int(ancount_hex, 16)
             if(int_ancount > 0): #NEED ANSWERS BOOL
                 print('***Answer Section (', int_ancount,'records)***')
 
             # Then, if the response contains A (IP address) records, each should be printed on a line of the form:
             i = 0
-            for i in int_ancount == 0 :
+            for i in range(int_ancount) :
                 #for(parsed_res['resps']): #NEED ANSWERS LIST
-                if(parsed_res['resps'][i]['resp_type'] == 'A'):
+                if(resp_type == '0001'):
                     print('IP   [ip address]    [seconds can cache]    [auth | nonauth]') #SHOULD I REPLACE THE 'TABS' BY THE ACTUAL TAB CHARACTER t{}
                 if(resp_type == 'CNAME'):
                     print('CNAME    [alias]    [seconds can cache]    [auth | nonauth]')
+                if(resp_type == '000f'):
+                    print('MX <tab> [alias] <tab> [pref] <tab> [seconds can cache] <tab> [auth | nonauth]')
+                if(resp_type == '0002'):
+                    print('NS <tab> [alias] <tab> [seconds can cache] <tab> [auth | nonauth]')
+
