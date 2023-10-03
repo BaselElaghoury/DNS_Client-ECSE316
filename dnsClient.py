@@ -3,6 +3,7 @@ import socket
 import time
 import random
 import binascii
+import sys
 
 
 def parse_arguments():
@@ -182,17 +183,21 @@ def parse_dns_response(response):
     Rcode = int(bin_flags[-4:], 2)
 
     if Rcode == 1:
-        raise Exception("ERROR  The name server was unable to interpret the query")
+        print("ERROR    The name server was unable to interpret the query")
+        sys.exit()
     
     if Rcode == 2:
-        raise Exception("ERROR  Server failure: the name server was unable to process this query due to a problem with the name server")
+        print("ERROR    Server failure: the name server was unable to process this query due to a problem with the name server")
+        sys.exit()
     if Rcode == 3:
-        raise Exception("ERROR  Name error: meaningful only for responses from an authoritative name server, this code signifies that the domain name referenced in the query does not exist")
+        print("ERROR    Name error: meaningful only for responses from an authoritative name server, this code signifies that the domain name referenced in the query does not exist")
+        sys.exit()
     if Rcode == 4:
-        raise Exception("ERROR  Not implemented: the name server does not support the requested kind of query")
+        print("ERROR    Not implemented: the name server does not support the requested kind of query")
+        sys.exit()
     if Rcode == 5:
-        raise Exception("ERROR  Refused: the name server refuses to perform the requested operation for policy reasons")
-
+        print("ERROR    Refused: the name server refuses to perform the requested operation for policy reasons")
+        sys.exit()
 
     return True
 
@@ -230,11 +235,11 @@ def send_dns_query(query, timeout, max_retries, port, mx, ns, server, name):
         return info
 
     except socket.timeout:
-        print("Socket timed out. The DNS server did not respond within the specified timeout.")
+        print("ERROR    Socket timed out. The DNS server did not respond within the specified timeout.")
     except socket.error as e:
-        print("Socket error:", e)
+        print("ERROR    Socket error:", e)
     except Exception as e:
-        print("An error occurred:", e)
+        print("ERROR    An error occurred:", e)
         
 
 if __name__ == "__main__":
@@ -242,7 +247,8 @@ if __name__ == "__main__":
 
         req_type = 'none'
         if(args.mx and args.ns):
-            raise Exception("ERROR  You cannot ask for both a mail server and a name server request at the same time.")
+            print("ERROR    You cannot ask for both a mail server and a name server request at the same time.")
+            sys.exit()
         if(args.mx):
             req_type = 'mx'
         if(args.ns):
