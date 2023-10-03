@@ -40,7 +40,7 @@ def create_dns_query(timeout, max_retries, port, mx, ns, server, name):
     # print(header)
     header_int = int(header, 2)
     header_hex = hex(header_int)[2:]
-    print("This is the header in hex:", header_hex)
+    # print("This is the header in hex:", header_hex)
 
     # Encode domain name
     labels = name.split('.')
@@ -60,7 +60,7 @@ def create_dns_query(timeout, max_retries, port, mx, ns, server, name):
     qname_size_in_bytes = len(qname)
     qnamebinsize = qname_size_in_bytes * 8
 
-    print("qnamebinary:", qnamebinsize)
+    # print("qnamebinary:", qnamebinsize)
     qname = qname.hex()
 
     # DNS question fields (4 bytes each)
@@ -140,7 +140,7 @@ def parse_dns_response(response):
         resp_ttl = dns_response[pointer + 12 : pointer + 20]
         resp_rdlength = dns_response[pointer + 20 : pointer + 24]
         resp_rdata = dns_response[pointer + 24 : pointer + 24 + int(resp_rdlength, 16) * 2]
-        print('This is one response')
+        # print('This is one response')
         pointer += int(resp_rdlength, 16) * 2 + 24
 
     # Turning first 16 bits of rdata for the pref into an integer for MX
@@ -239,7 +239,7 @@ def send_dns_query(query, timeout, max_retries, port, mx, ns, server, name):
 
 if __name__ == "__main__":
         args = parse_arguments()
-        print(args.ns)
+
         req_type = 'none'
         if(args.mx and args.ns):
             raise Exception("ERROR  You cannot ask for both a mail server and a name server request at the same time.")
@@ -269,9 +269,9 @@ if __name__ == "__main__":
 
         if(received_bool):
             parsed_res = parse_dns_response(query_rec)
-            print(parsed_res)
-            print('Response  received  after', total_time, 'seconds (', num_retries, ' retries) ')
-            print("Received response:", query_rec)
+            # print(parsed_res)
+            print('Response received  after', total_time, 'seconds (', num_retries, ' retries) ')
+            # print("Received response:", query_rec)
 
             int_ancount = int(ancount_hex, 16)
             if(int_ancount > 0):
