@@ -306,10 +306,10 @@ if __name__ == "__main__":
 
             for i in range(int_ancount) :
                 if(resp_type == '0001'):
-                    print('IP    ', add_rdata, '    ',resp_ttl_hex,'    ',auth,'')
+                    print('IP    ', resp_rdata, '    ',resp_ttl_hex,'    ',auth,'')
                 if(resp_type == '005'):
-                    print('CNAME    ', add_rdata,'    ',resp_ttl_hex,'    ',auth,'')
+                    print('CNAME    ', resp_rdata,'    ',resp_ttl_hex,'    ',auth,'')
                 if(resp_type == '000f'):
                     print('MX    ',resp_rdata_alias_MX,'    ',resp_rdata_pref_int,'    ',resp_ttl_hex,'    ',auth,'')
                 if(resp_type == '0002'):
-                    print('NS    ', add_rdata,'    ',resp_ttl_hex,'    ',auth,'')
+                    print('NS    ', resp_rdata,'    ',resp_ttl_hex,'    ',auth,'')
